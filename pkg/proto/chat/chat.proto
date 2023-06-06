@@ -1,0 +1,25 @@
+syntax = "proto3";
+option go_package = ".;chat";
+package chat;
+
+message CommonResp {
+  int32  errCode = 1; //非0既有异常
+  string errMsg = 2;
+}
+
+message ForgetPayPasswordVerifyCodeReq{
+  string userId = 1;
+  string code = 2;
+  string operationID = 3;
+}
+
+message ForgetPayPasswordVerifyCodeResp{
+  CommonResp commonResp = 1;
+}
+
+// chat 服务
+service chat {
+  //忘记支付密码校验验证码
+  rpc ForgetPayPasswordVerifyCode(ForgetPayPasswordVerifyCodeReq) returns (ForgetPayPasswordVerifyCodeResp);
+
+}

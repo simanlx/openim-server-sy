@@ -1,0 +1,258 @@
+//package agent
+//
+//import (
+//	"crazy_server/pkg/common/config"
+//	"crazy_server/pkg/common/db"
+//	imdb "crazy_server/pkg/common/db/mysql_model/agent_model"
+//	rocksCache "crazy_server/pkg/common/db/rocks_cache"
+//	"crazy_server/pkg/common/log"
+//	"crazy_server/pkg/common/utils"
+//	"crazy_server/pkg/grpc-etcdv3/getcdv3"
+//	"crazy_server/pkg/proto/agent"
+//	rpc "crazy_server/pkg/proto/cloud_wallet"
+//	"context"
+//	"fmt"
+//	"github.com/pkg/errors"
+//	"gorm.io/gorm"
+//	"strings"
+//	"time"
+//)
+//
+//// 推广员余额提现
+//func (rpc *AgentServer) BalanceWithdrawal(ctx context.Context, req *agent.BalanceWithdrawalReq) (*agent.BalanceWithdrawalResp, error) {
+//	resp := &agent.BalanceWithdrawalResp{CommonResp: &agent.CommonResp{Code: 0, Msg: ""}}
+//
+//	// 加锁
+//	lockKey := fmt.Sprintf("BalanceWithdrawal:%s", req.UserId)
+//	if err := utils.Lock(ctx, lockKey); err != nil {
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = "操作加锁失败"
+//		return resp, nil
+//	}
+//	defer utils.UnLock(ctx, lockKey)
+//
+//	//获取推广员信息
+//	agentInfo, err := imdb.GetAgentByUserId(req.UserId)
+//	if err != nil || agentInfo.OpenStatus == 0 {
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = "信息有误"
+//		return resp, nil
+//	}
+//
+//	//校验推广员余额
+//	if int64(req.Amount) > agentInfo.Balance {
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = "账户余额不足"
+//		return resp, nil
+//	}
+//
+//	orderNo := utils.GetOrderNo()                                                 //平台订单号
+//	commission := rocksCache.GetPlatformValueConfigCache("withdrawal_commission") //获取提现手续费
+//
+//	//提现申请通知
+//	go utils.WithdrawApplyNotify(agentInfo.AgentNumber, req.Amount, agentInfo.Balance, commission)
+//
+//	info := &db.TAgentWithdraw{
+//		OrderNo:             orderNo,
+//		NcountOrderNo:       "",
+//		UserId:              agentInfo.UserId,
+//		AgentNumber:         agentInfo.AgentNumber,
+//		BeforeBalance:       agentInfo.Balance,
+//		BeforeFreezeBalance: agentInfo.FreezeBalance,
+//		Balance:             req.Amount,
+//		NcountBalance:       0,
+//		Commission:          commission,
+//		CreatedTime:         time.Now(),
+//		UpdatedTime:         time.Now(),
+//	}
+//
+//	//处理推广员余额提现逻辑
+//	err = BalanceWithdrawalSubmitLogic(info)
+//	if err != nil {
+//		log.Error("", fmt.Sprintf("处理推广员余额提现逻辑失败,推广员id(%s),err:%s", req.UserId, err.Error()))
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = err.Error()
+//		return resp, nil
+//	}
+//
+//	return resp, nil
+//}
+//
+//// 处理推广员余额提现逻辑
+//func BalanceWithdrawalSubmitLogic(info *db.TAgentWithdraw) error {
+//	//开启事务
+//	tx := db.DB.AgentMysqlDB.DefaultGormDB().Begin()
+//
+//	// 1、写入提现记录数据
+//	err := tx.Table("t_agent_withdraw").Create(&info).Error
+//	if err != nil {
+//		tx.Rollback()
+//		return errors.Wrap(err, "写入提现记录数据失败")
+//	}
+//
+//	// 2、冻结推广员余额
+//	err = tx.Table("t_agent_account").Where("user_id = ? and balance >= ?", info.UserId, info.Balance).UpdateColumns(map[string]interface{}{
+//		"balance":        gorm.Expr(" balance - ? ", info.Balance),
+//		"freeze_balance": gorm.Expr(" freeze_balance + ? ", info.Balance),
+//	}).Error
+//	if err != nil {
+//		tx.Rollback()
+//		return errors.Wrap(err, fmt.Sprintf("修改推广员(%s)余额失败,余额(%d),冻结余额(%d),提现余额(%d)", info.UserId, info.BeforeBalance, info.BeforeFreezeBalance, info.Balance))
+//	}
+//
+//	//3、调用rpc提现接口、提现到家等你主账户
+//
+//	//notifyUrl := config.Config.Ncount.Notify.AgentWithdrawNotifyUrl //回调地址
+//
+//	//调用rpc提现接口
+//
+//	//提交事务
+//	err = tx.Commit().Error
+//	if err != nil {
+//		log.NewError("", "BalanceWithdrawalSubmitLogic commit error:", err, "tx.Rollback().Error :", tx.Rollback().Error)
+//		return errors.Wrap(err, "事务提交失败")
+//	}
+//
+//	return nil
+//}
+//
+//// rpc 调用新生支付提现接口-到主账户余额
+//func RpcBalanceWithdrawal(ctx context.Context, orderNo string, amount int32, operationID string) (string, error) {
+//	etcdConn := getcdv3.GetDefaultConn(config.Config.Etcd.EtcdSchema, strings.Join(config.Config.Etcd.EtcdAddr, ","), config.Config.RpcRegisterName.OpenImCloudWalletName, operationID)
+//	if etcdConn == nil {
+//		errMsg := operationID + "getcdv3.GetDefaultConn CreateThirdPayOrder == nil"
+//		log.NewError(operationID, errMsg)
+//		return "", errors.New(errMsg)
+//	}
+//
+//	//组装数据
+//	rpcReq := rpc.CreateThirdPayOrderReq{
+//		MerchantId:  config.Config.Agent.MerchantId, //商户号
+//		MerOrderId:  orderNo,
+//		NotifyUrl:   config.Config.Agent.AgentRechargeNotifyUrl,
+//		Amount:      amount,
+//		Remark:      "推广员充值咖豆",
+//		OperationID: operationID,
+//	}
+//
+//	client := rpc.NewCloudWalletServiceClient(etcdConn)
+//	RpcResp, _ := client.CreateThirdPayOrder(ctx, &rpcReq)
+//	if RpcResp.CommonResp != nil && RpcResp.CommonResp.ErrCode != 0 {
+//		log.NewError(operationID, "client.CreateThirdPayOrder 调用失败:", RpcResp.CommonResp.ErrMsg)
+//		return "", errors.New(RpcResp.CommonResp.ErrMsg)
+//	}
+//
+//	return RpcResp.OrderNo, nil
+//}
+//
+//// 推广员提现余额 - 新生支付回调
+//func (rpc *AgentServer) WithdrawNotify(ctx context.Context, req *agent.WithdrawNotifyReq) (*agent.WithdrawNotifyResp, error) {
+//	resp := &agent.WithdrawNotifyResp{CommonResp: &agent.CommonResp{Code: 0, Msg: ""}}
+//
+//	// 加锁
+//	lockKey := fmt.Sprintf("WithdrawNotify:%s", req.OrderNo)
+//	if err := utils.Lock(ctx, lockKey); err != nil {
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = "操作加锁失败"
+//		return resp, nil
+//	}
+//	defer utils.UnLock(ctx, lockKey)
+//
+//	//校验订单号
+//	orderInfo, err := imdb.GetWithdrawOrderByOrderNo(req.OrderNo)
+//	if err != nil {
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = "订单不存在"
+//		return resp, nil
+//	}
+//
+//	//校验订单状态、已处理
+//	if orderInfo.Status == 1 {
+//		return resp, nil
+//	}
+//
+//	//校验金额、提现金额和新生支付返回不同
+//	if orderInfo.Balance != req.Amount {
+//		//群业务告警
+//		go utils.WithdrawNotifyWarn(req.OrderNo, orderInfo.AgentNumber, orderInfo.Balance, req.Amount)
+//
+//		errMsg := fmt.Sprintf("推广员提现余额回调校验金额异常，订单号:(%s),提现金额(%d)、新生支付回调金额(%d)", req.OrderNo, orderInfo.Balance, req.Amount)
+//		log.Error("", errMsg)
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = errMsg
+//		return resp, nil
+//	}
+//
+//	//处理提现余额逻辑：1、更新提现订单状态 、2扣除冻结余额 、3记录余额账户变更日志
+//	err = handelWithdrawNotifyLogic(orderInfo, req.NcountOrderNo, req.PayTime)
+//	if err != nil {
+//		log.Error("", fmt.Sprintf("推广员提现余额-新生支付回调订单号:(%s),err:%s", req.OrderNo, err.Error()))
+//		resp.CommonResp.Code = 400
+//		resp.CommonResp.Msg = err.Error()
+//		return resp, nil
+//	}
+//
+//	return resp, nil
+//}
+//
+//// 处理提现余额逻辑：1、更新提现订单状态 、2扣除冻结余额 、3记录余额账户变更日志
+//func handelWithdrawNotifyLogic(info *db.TAgentWithdraw, ncountOrderNo, payTime string) error {
+//	//开启事务
+//	tx := db.DB.AgentMysqlDB.DefaultGormDB().Begin()
+//
+//	//1、更新订单状态
+//	var payT int64
+//	payTimeInt, err := time.Parse("2006-01-02 15:04:05", payTime)
+//	if err == nil {
+//		payT = payTimeInt.Unix()
+//	}
+//
+//	err = tx.Table("t_agent_withdraw").Where("id = ?", info.Id).Updates(map[string]interface{}{
+//		"ncount_order_no":  ncountOrderNo,
+//		"status":           1,
+//		"transferred_time": payT,
+//		"updated_time":     time.Now(),
+//	}).Error
+//	if err != nil {
+//		tx.Rollback()
+//		return errors.Wrap(err, "更新提现订单状态失败")
+//	}
+//
+//	//2、扣除冻结余额
+//	err = tx.Table("t_agent_account").Where("user_id = ? and freeze_balance >= ? ", info.UserId, info.Balance).UpdateColumn("freeze_balance", gorm.Expr(" freeze_balance - ? ", info.Balance)).Error
+//	if err != nil {
+//		tx.Rollback()
+//		return errors.Wrap(err, fmt.Sprintf("扣推广员(%s)除冻结余额(%d)失败：%s", info.UserId, info.Balance, err.Error()))
+//	}
+//
+//	//3、增加余额变更日志
+//	balanceRecord := &db.TAgentAccountRecord{
+//		OrderNo:           info.OrderNo,
+//		UserId:            info.UserId,
+//		Type:              2,
+//		BusinessType:      imdb.AccountBusinessTypeWithdraw,
+//		ChessUserId:       0,
+//		ChessUserNickname: "",
+//		Describe:          "提现到银行卡",
+//		Amount:            info.Balance,
+//		Day:               time.Now().Format("2006-01-02"),
+//		Month:             time.Now().Format("2006-01"),
+//		CreatedTime:       time.Now(),
+//		UpdatedTime:       time.Now(),
+//		DB:                tx,
+//	}
+//	err = tx.Table("t_agent_account_record").Create(&balanceRecord).Error
+//	if err != nil {
+//		tx.Rollback()
+//		return errors.Wrap(err, "增加余额变更日志失败")
+//	}
+//
+//	//提交事务
+//	err = tx.Commit().Error
+//	if err != nil {
+//		log.NewError("", "handelWithdrawNotifyLogic commit error:", err, "tx.Rollback().Error :", tx.Rollback().Error)
+//		return errors.Wrap(err, "事务提交失败")
+//	}
+//
+//	return nil
+//}

@@ -1,0 +1,685 @@
+syntax = "proto3";
+option go_package = ".;cloud_wallet";
+package cloud_wallet;
+
+
+enum CloudWalletErrCode {
+  ESC = 0 ;
+  ServerError = 9999 ; // 9999 服务器错误
+  ServerNcountError = 8888 ;// 新生支付错误
+
+  // 1000- 1999 云钱包相关错误
+  PacketStatusIsCreate = 1000; // 红包状态是创建
+  PacketStatusIsFinish = 1001; // 红包状态是完成
+  PacketStatusIsExpire = 1002; // 红包状态是过期
+  PacketStatusIsExclusive = 1003; // 红包状态是独占
+  PacketStatusIsReceived = 1004; // 红包状态是取消
+  PacketStatusIsBan = 1005; // 该群禁止抢红包
+
+  // 2- 用户相关的
+  UserNotValidate = 2000; // 用户未认证
+}
+
+
+// 通用消息回复组件
+message CommonResp {
+  CloudWalletErrCode  errCode = 1; //非0既有异常
+  string errMsg = 2;
+}
+
+//1. 获取云账户信息
+message UserNcountAccountReq{
+  string userId = 1; //用户id
+  string operationID = 2; //链路跟踪id
+}
+
+message UserNcountAccountResp{
+  int32 step = 1; //步骤
+  string idCard = 2; //身份证
+  string realName = 3; //真实姓名
+  int32 accountStatus = 4; //账户开通状态
+  string balAmount = 5; //账户余额
+  string availableBalance = 6; //可用余额
+  repeated BindCardsList bindCardsList = 7; //绑定的银行卡列表
+  CommonResp commonResp = 8;
+}
+
+message BindCardsList{
+  string bindCardAgrNo = 1; //协议号
+  string bankCode = 2; //银行
+  string cardNo = 3; //卡号
+  string mobile = 4; //手机号码
+  int32 bindCardId = 5; //银行卡id
+}
+
+
+//4. 云钱包收支明细
+message CloudWalletRecordListReq{
+  string userId = 1; //用户id
+  string startTime = 2; //开始日期
+  string endTime = 3; //结束日期
+  int32  page = 4; //页码
+  int32  size = 5; //size
+  string operationID = 6; //链路跟踪id
+}
+message CloudWalletRecordListResp{
+  int32  total = 1; //总数
+  repeated RecordList recordList = 2;
+  int64  totalincome = 3; //总收入
+  int64  totalpay = 4; //总支出
+}
+
+message RecordList{
+  string describe = 1; //明细描述
+  int32  amount = 2; //变动金额
+  string createdTime = 3; //时间
+  string relevancePacketId = 4; //关联红包id
+  int32  afterAmount = 5; //变更后余额
+  int32  type = 6; //收支类型(1收入、2支出)
+  int32  id = 7; //记录id
+}
+
+// 6.绑定用户银行卡
+message BindUserBankcardReq{
+  string userId = 1; //用户id
+  string cardOwner = 2; //持卡者
+  string bankCardNumber = 3; //银行卡号
+  string mobile = 4; //手机号码
+  string cardAvailableDate = 5; //信用卡有效期
+  string cvv2 = 6; //信用卡cvv2
+  string operationID = 7; //链路跟踪id
+}
+
+message BindUserBankcardResp{
+  int32  bankCardId = 1; //银行卡id
+  CommonResp commonResp = 2;
+}
+
+message UserRechargeConfirmReq{
+  string userId = 1; //用户id
+  string  merOrderId = 2; //订单号
+  string  smsCode = 3; //验证码
+  string operationID = 4; //链路跟踪id
+}
+
+message UserRechargeConfirmResp{
+  CommonResp commonResp = 1;
+}
+
+// 绑定用户银行卡确认
+message BindUserBankcardConfirmReq{
+  string userId = 1; //用户id
+  int32  bankCardId = 2; //银行卡id
+  string  merOrderId = 3; //平台订单号
+  string  smsCode = 4; //验证码
+  string  merUserIp = 5; //用户ip
+  string operationID = 6; //链路跟踪id
+}
+
+message BindUserBankcardConfirmResp{
+  int32  bankCardId = 1; //银行卡id
+  CommonResp commonResp = 2;
+}
+
+// 解绑绑定用户银行卡
+message UnBindingUserBankcardReq{
+  string userId = 1; //用户id
+  string bindCardAgrNo = 2; //绑卡协议号
+  string operationID = 3; //链路跟踪id
+}
+
+message UnBindingUserBankcardResp{
+  CommonResp commonResp = 1;
+}
+
+// 7.设置用户支付密码
+message SetPaymentSecretReq{
+  int32 type = 1; //设置类型(1设置密码、2忘记密码smsCode设置、3修改密码)
+  string code = 2; //验证码
+  string paymentSecret = 3; //密码
+  string operationID = 4; //链路跟踪id
+  string userId = 5; //用户id
+  string originalPaymentSecret = 6; //原支付密码
+}
+message SetPaymentSecretResp{
+  int32 step = 1;
+  CommonResp commonResp = 2;
+}
+
+// 校验用户支付密码
+message CheckPaymentSecretReq{
+  string userId = 1; //用户id
+  string paymentSecret = 2; //密码
+  string operationID = 3; //链路跟踪id
+}
+message CheckPaymentSecretResp{
+  CommonResp commonResp = 1;
+}
+
+
+// 8.用户密码认证  部分操作需要用户密码认证
+message userPaymentSecretAuthReq{
+  string userId = 1; //用户id
+  string paymentSecret = 2; //密码
+}
+
+message userPaymentSecretAuthResp{
+  CommonResp commonResp = 1;
+}
+
+// ==============================================操作类 ===================
+
+
+// 9. 用户钱包提现到银行卡
+message drawAccountReq {
+  string userId = 1; //用户id
+  string bindCardAgrNo = 2;//绑卡协议号
+  int32 amount = 3;//提现金额 单位：分
+  string paymentPassword = 4; //支付密码
+  string OperationID = 5; //链路跟踪id
+}
+message drawAccountResp {
+  string orderNo = 1; //订单号
+  CommonResp commonResp = 2;
+}
+
+// ==============================================红包管理 ===================
+
+// 10. 发红包
+message SendRedPacketReq {
+  string userId = 1; //用户id
+  int32 PacketType = 2; //红包类型(1个人红包、2群红包)
+  int32 IsLucky = 3; //是否为拼手气红包
+  int32 IsExclusive = 4; //是否为专属红包(0不是、1是)
+  string ExclusiveUserID = 5; //专属红包接收者 和isExclusive
+  string PacketTitle = 6; //红包标题
+  int64 Amount = 7; //红包金额 单位：分
+  int32 Number = 8; //红包个数
+
+  // 通过哪种方式发送红包
+  int32 SendType = 9; //发送方式(1钱包余额、2银行卡)
+  int64 BankCardID = 10 ;//银行卡id
+  string operationID = 11; //链路跟踪id
+  string recvID = 12; //接收者id (如果是群则是群聊红包，如果是用户是用户红包)
+  // 发送一个银行卡协议号
+  string bindCardAgrNo = 13; //绑卡协议号
+  string password = 14; //支付密码
+}
+message SendRedPacketResp {
+  string redPacketID = 1;
+  CommonResp commonResp = 2;
+}
+
+// 新红包通知结构体
+message RedPackageNotify {
+  string userId = 1; //用户id
+  int64 RedPacketID = 2; //红包id
+  int64 SendTime = 3; //红包发送时间
+  string PacketTitle = 4; //红包标题
+  int32 PacketType = 5; //红包类型(1个人红包、2群红包)
+  int32 IsExclusive = 6; //是否为专属红包(0不是、1是)
+  int64 ExclusiveUserID = 7; //专属红包接收者 和isExclusive配合使用
+}
+
+// 红包被领取通知发送红包者 的结构体
+message RedPackageClickedNotify{
+  string PacketID = 1; //红包id
+  string UserName = 2; //领取者id，同时通知发送者 和接收者，但是两者的消息展示不同
+  string remark = 3; //备注
+}
+
+
+
+// 11. 抢红包
+message ClickRedPacketReq {
+  string  userId = 1; //用户id
+  string redPacketID = 2; //红包id
+  string operateID = 3; //链路跟踪id
+}
+message ClickRedPacketResp {
+  string userId = 1; //用户id
+  string redPacketID = 2; //红包id
+  string amount = 3; //领取到的红包金额  单位：分
+  int32 isReceive = 4; //是否领取成功
+  CommonResp commonResp = 5;
+}
+
+// 12. 获取红包信息
+message RedPacketInfoReq {
+  string userId = 1; //用户id
+  string packetId = 2; //红包id
+  string operationID = 3; //链路跟踪id
+}
+message RedPacketInfoResp {
+  string userId = 1; //用户id
+  int32 packetType = 2; //红包类型(1个人红包、2群红包)
+  int32 is_lucky = 3; //是否为拼手气红包
+  int32 is_exclusive = 4; //是否为专属红包(0不是、1是)
+  string exclusiveUserID = 5; //专属红包接收者 和isExclusive配合使用
+  string packet_title = 6; //红包标题
+  int64 amount = 7; //红包金额
+  int32 number = 8; //红包个数
+  int64 expireTime = 9; //红包过期时间
+  int64 remain = 10; //剩余红包个数
+  string nickname = 11; //昵称
+  string faceUrl = 12; //头像
+  repeated ReceiveDetail receiveDetail = 13; //当前红包领取列表
+}
+
+message ReceiveDetail {
+  string userId = 1; //用户id
+  int32 amount = 2; //金额
+  string nickname = 3; //昵称
+  string faceUrl = 4; //头像
+  string receiveTime = 5; //领取时间
+}
+
+// 13. 红包领取明细
+message RedPacketReceiveDetailReq {
+  string userId = 1; //用户id
+  string startTime = 2; //开始时间
+  string endTime = 3; //结束时间
+  string operationID = 4; //链路跟踪id
+}
+
+message RedPacketReceiveDetailResp {
+  repeated RedPacketReceiveDetail redPacketReceiveDetail = 1;
+}
+
+message RedPacketReceiveDetail {
+  string packetId = 1; //红包id
+  int32 amount = 2; //金额(分)
+  string packetTitle = 3; //红包标题
+  string receiveTime = 4; //领取时间
+  int32 packetType = 5; //红包类型(1个人红包、2群红包)
+  string isLucky = 6; //是否为拼手气红包
+}
+
+// 14. 根据日期查询用户的红包记录 ： userid- red.list
+
+message listRedPacketRecordReq {
+  string userId = 1; //用户id
+  string date = 2;
+}
+
+
+message listRedPacketRecordResp {
+  string userId = 1; //领取人id
+  string nickname = 2; //领取人名称
+  string avater = 3; //领取人头像
+  uint32 redPacketID = 4; //红包id
+  string redPacketTitle = 5; //红包标题
+  float amount = 6; //红包金额
+  CommonResp commonResp = 7;
+}
+
+// 15. 确认发送红包的code
+message confirmSendRedPacketCodeReq {
+  string userId = 1; //用户id
+  string redPacketID = 2;
+  string code = 3;
+}
+message confirmSendRedPacketCodeResp {
+  CommonResp commonResp = 1;
+}
+
+
+
+
+// ==============================================回调 ===================
+// 16. 用户从银行卡充值到红包、充值到主账户都需要进行回调
+message chargeNotifyReq {
+  string merOrderId = 1;
+  string resultCode = 2;
+  string errorCode = 3;
+  string errorMsg = 4;
+  string ncountOrderId = 5;
+  string tranAmount = 6;
+  string submitTime = 7;
+  string tranFinishTime = 8;
+  string feeAmount = 9;
+}
+
+message chargeNotifyResp {
+  CommonResp commonResp = 1;
+}
+
+// 17. 提现的回调接口： 提供给第三方
+message drawNotifyReq {
+  string merOrderId = 1;
+  string resultCode = 2;
+  string errorCode = 3;
+  string errorMsg = 4;
+  string ncountOrderId = 5;
+  string tranFinishDate = 6;
+  string serviceAmount = 7;
+  string payAcctAmount = 8;
+}
+
+message drawNotifyResp {
+  CommonResp commonResp = 1;
+}
+
+// 身份证实名认证
+message IdCardRealNameAuthReq{
+  string userId = 1; //用户id
+  string mobile = 2; //手机号码
+  string id_card = 3; //身份证
+  string real_name = 4; //真实姓名
+  string operationID = 5; //链路跟踪id
+}
+
+message IdCardRealNameAuthResp {
+  uint32 step = 1; //步骤
+  CommonResp commonResp = 2;
+}
+
+message  authPaymentSecretReq{
+  string userId = 1; //用户id
+  string payment_secret = 2; //支付密码
+}
+
+message authPaymentSecretResp {
+  uint32 step = 1; //步骤
+  CommonResp commonResp = 2;
+}
+
+// 用户的充值接口
+message UserRechargeReq{
+  string userId = 1; //用户id
+  string bindCardAgrNo = 2; //绑卡协议号
+  int32 amount = 3; //充值金额 单位：分
+  int32 accountType = 4; //充值账户类型(1主账户,2红包账户)
+  string OperationID = 5; //链路跟踪id
+}
+
+message UserRechargeResp {
+  string orderNo = 1; //订单号
+  CommonResp commonResp = 2;
+}
+
+
+message ForbidGroupRedPacketReq {
+  string userId = 1; //用户id
+  string groupId = 2; //群id
+  string operationID = 3; //链路跟踪id
+  int32  forbid = 4; //是否禁止群红包(1禁止,0不禁止)
+}
+
+message ForbidGroupRedPacketResp {
+  CommonResp commonResp = 1;
+}
+
+message CloudWalletRecordDelReq{
+  string userId = 1; //用户id
+  int32  recordId = 2; //记录id
+  string operationID = 3; //链路跟踪id
+  int32  delType = 4; //删除类型(0单条、1全部)
+}
+
+message CloudWalletRecordDelResp {
+  CommonResp commonResp = 1;
+}
+
+
+// 16.获取版本
+message getVersionReq {
+  string version = 1;
+  string operationID = 2; //链路跟踪id
+}
+
+// param out : 最新版本号、下载地址、更新内容、是否强制更新
+message getVersionResp {
+  string version = 1;
+  string downloadUrl = 2;
+  string updateContent = 3;
+  int32 isForceUpdate = 4;
+  CommonResp commonResp = 5;
+}
+
+// 红包退还
+message RefoundPacketReq {
+  string IP = 1; //红包id
+  string operationID = 2; //链路跟踪id
+}
+
+message RefoundPacketResp {
+  int32  expireList = 1 ; // 本次查询到的过期红包总数量
+  int32  refundSuccess = 2 ; // 本次退还红包的总数量
+  int32  UpdateStatus = 3;  // 用户红包被抢完，但是状态为修改，需要修改状态
+  int32  refundFailed = 4 ; // 本次退还失败的红包总数量（前期可能测试阶段，导致用户红包账户金额不足，转账失败，转账失败错误码：3，需要对账）
+  CommonResp commonResp = 5;
+}
+
+//// 提供给别人进行的第三方支付
+//    OprationID       string `json:"opration_id" binding:"required"` //链路跟踪id
+//    OrderNo          string `json:"order_no" binding:"required"`    //本平台订单号
+//    Password         string `json:"password" binding:"required"`    //支付密码
+//    SendType         int32  `json:"send_type" binding:"required"`   //发送方式(1钱包余额、2银行卡)
+//    BankcardProtocol string  `json:"bankcard_protocol"`              //协议号
+message ThirdPayReq {
+  string operationID = 1; //链路跟踪id
+  string orderNo = 2; //本平台订单号
+  string password = 3; //支付密码
+  int32 sendType = 4; //发送方式(1钱包余额、2银行卡)
+  string bankcardProtocol = 5; //协议号
+  string userid = 6; //用户id
+}
+
+
+message ThirdPayResp {
+  string orderNo = 1; //订单号
+  CommonResp commonResp = 2;
+}
+
+enum ThirdPay {
+  OK = 0 ;
+
+  ERRParam = 4001 ; //参数错误
+  ERRUser = 4002 ; //用户不存在
+  ERRMerchant = 4003 ; //商户不存在
+  ERRMerOrderID = 4004 ; //商户订单号重复
+  ERRAmount = 4005 ; //非法金额
+  ERRNotifyURL = 4006 ; //非法异步通知地址
+
+  ERRThirdPay = 6000 ; //第三方错误，新生支付
+}
+
+message ThirdResp{
+  int32 errCode = 1;
+  string errMsg = 2;
+  string orderNo = 3; //我方生成的订单号
+  string originOrderNo = 4; //调用方的订单号
+}
+
+
+message  CreateThirdPayOrderReq {
+  string merchantId = 1; //商户号，需要向平台申请
+  string merOrderId = 2; //商户订单号 ，全局唯一，不能重复
+  string notifyUrl = 3; //异步通知地址
+  int32 amount = 4; //金额，单位分
+  string operationID = 5; //链路跟踪id
+  string remark = 6; //备注
+}
+
+
+message CreateThirdPayOrderResp {
+  string orderNo = 1; //订单号
+  CommonResp commonResp = 2;
+}
+
+message GetThirdPayOrderInfoReq {
+  string orderNo = 1; //订单号
+  string operationID = 2; //链路跟踪id
+}
+
+message GetThirdPayOrderInfoResp {
+  int32 amount = 1; //金额，单位分
+  string orderNo = 2; //订单号
+  string merOrderId = 3; //商户订单号 ，全局唯一，不能重复
+  string merchantId = 4; //商户号，需要向平台申请
+  int32  status = 5; //订单状态 0：未支付 1：支付成功 2：支付失败
+  string addTime = 6; //创建时间
+  string remark = 7; //支付时间
+  CommonResp commonResp = 8;
+}
+
+message  PayConfirmReq{
+  string orderNo = 1; //订单号
+  string code = 2; //链路跟踪id
+  string operationID = 3; //链路跟踪id
+  string userid = 4; //用户id
+  PayCallbackBusinessType businessType = 5;
+}
+
+// 这里做回调，但是建议使用统一的回调入口，通过业务ID来进行区分，由于之前的回调不是我处理的，所以这里只能做扩展
+// steven
+message PayCallbackReq {
+  string merOrderId = 1;
+  string resultCode = 2;
+  string errorCode = 3;
+  string errorMsg = 4;
+  string ncountOrderId = 5;
+  string tranAmount = 6;
+  string submitTime = 7;
+  string tranFinishTime = 8;
+  string feeAmount = 9;
+  PayCallbackBusinessType businessType = 10;
+}
+
+// 支付回调的统一处理层面
+enum PayCallbackBusinessType {
+  EMOK = 0;
+  P_ThirdPay = 100; //第三方支付 相关的业务
+}
+
+// 这个返回httpcode200就行
+message PayCallbackResp {
+  CommonResp commonResp = 1;
+}
+
+//// 提现，咖豆提现到云钱包
+//type ThirdWithdrawReq  struct {
+//	NotifyUrl string `json:"notify_url" binding:"required"` //异步通知地址
+//	Amount    int32  `json:"amount" binding:"required"`     //金额，单位分
+//	Password  string `json:"password" binding:"required"`   //支付密码
+//	OperationID string `json:"operationID" binding:"required"` // 链路跟踪id
+//}
+message ThirdWithdrawalReq {
+  int32 amount = 1; //金额，单位分
+  string password =2; //支付密码
+  string userId = 3; // 链路跟踪id
+  string operationID = 4; // 链路跟踪id
+  int32   commission = 5; //手续费用
+  string  thirdOrderId = 6; //第三方订单号
+}
+
+message ThirdWithdrawalResp {
+  CommonResp commonResp = 1;
+  string orderID = 2; //订单号
+  int32 amount = 3; //实际到账金额
+}
+
+
+//    type ConfirmSendRedPacketReq struct {
+//Code 	  string `json:"code" binding:"required"`        //验证码
+//    RedPacketID string `json:"redPacketID" binding:"required"` //红包id
+//    OperateID   string `json:"operateID"`   //链路跟踪id
+//    }
+message SendRedPacketConfirmReq{
+  string code = 1; //验证码
+  string redPacketID = 2; //红包id
+  string operateID = 3; //链路跟踪id
+}
+
+message SendRedPacketConfirmResp{
+  CommonResp commonResp = 1;
+}
+
+// 钱包服务
+service CloudWalletService {
+  // ==================================云钱包管理 ========
+  // 获取云账户信息
+  rpc UserNcountAccount(UserNcountAccountReq)returns(UserNcountAccountResp);
+
+  // 身份证实名认证
+  rpc IdCardRealNameAuth(IdCardRealNameAuthReq)returns(IdCardRealNameAuthResp);
+
+  // 设置用户支付密码
+  rpc SetPaymentSecret(SetPaymentSecretReq)returns(SetPaymentSecretResp);
+
+  // 校验用户支付密码
+  rpc CheckPaymentSecret(CheckPaymentSecretReq)returns(CheckPaymentSecretResp);
+
+  // 云钱包收支明细
+  rpc CloudWalletRecordList(CloudWalletRecordListReq)returns(CloudWalletRecordListResp);
+
+  //绑定用户银行卡
+  rpc BindUserBankcard(BindUserBankcardReq)returns(BindUserBankcardResp);
+
+  //绑定用户银行卡确认code
+  rpc BindUserBankcardConfirm(BindUserBankcardConfirmReq)returns(BindUserBankcardConfirmResp);
+
+  //解绑用户银行卡
+  rpc UnBindingUserBankcard(UnBindingUserBankcardReq)returns(UnBindingUserBankcardResp);
+
+  // 银行卡充值
+  rpc UserRecharge(UserRechargeReq)returns(UserRechargeResp);
+
+  // 银行卡充值code 确认
+  rpc UserRechargeConfirm(UserRechargeConfirmReq)returns(UserRechargeConfirmResp);
+
+  // 银行卡提现
+  rpc UserWithdrawal(drawAccountReq)returns(drawAccountResp);
+
+  // 充值回调接口
+  rpc ChargeNotify(chargeNotifyReq)returns(chargeNotifyResp);
+
+  // 提现回调接口
+  rpc WithDrawNotify(drawNotifyReq)returns(drawNotifyResp);
+
+  // 发送红包接口
+  rpc SendRedPacket(SendRedPacketReq)returns(SendRedPacketResp);
+
+  // 确认发送红包接口
+  rpc SendRedPacketConfirm(SendRedPacketConfirmReq)returns(SendRedPacketConfirmResp);
+
+  // 抢红包接口
+  rpc ClickRedPacket(ClickRedPacketReq)returns(ClickRedPacketResp);
+
+  // 禁止群抢红包操作
+  rpc ForbidGroupRedPacket(ForbidGroupRedPacketReq)returns(ForbidGroupRedPacketResp);
+
+  //红包领取明细列表
+  rpc RedPacketReceiveDetail(RedPacketReceiveDetailReq)returns(RedPacketReceiveDetailResp);
+
+  //红包详情
+  rpc RedPacketInfo(RedPacketInfoReq)returns(RedPacketInfoResp);
+
+  //软删除云钱包收支明细记录
+  rpc CloudWalletRecordDel(CloudWalletRecordDelReq)returns(CloudWalletRecordDelResp);
+
+  // 获取版本
+  rpc GetVersion(getVersionReq)returns(getVersionResp);
+
+  // 红包退还
+  rpc RefoundPacket(RefoundPacketReq)returns(RefoundPacketResp);
+
+  // 第三方支付
+  rpc ThirdPay(ThirdPayReq)returns(ThirdPayResp);
+
+  // 创建第三方订单
+  rpc CreateThirdPayOrder(CreateThirdPayOrderReq)returns(CreateThirdPayOrderResp);
+
+  // 查询
+  rpc GetThirdPayOrderInfo(GetThirdPayOrderInfoReq)returns(GetThirdPayOrderInfoResp);
+
+  // 第三方支付确认
+  rpc PayConfirm(PayConfirmReq)returns(CommonResp);
+
+  // 第三方回调接口
+  rpc PayCallback(PayCallbackReq)returns(PayCallbackResp);
+
+  // 第三方提现到云钱包
+  rpc ThirdWithdrawal(ThirdWithdrawalReq)returns(ThirdWithdrawalResp);
+}
