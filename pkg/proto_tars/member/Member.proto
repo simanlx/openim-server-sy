@@ -1,0 +1,95 @@
+syntax = "proto3";
+package tarsrpc;
+
+service MemberServer {
+
+    // 获取会员配置信息
+    rpc ListMemberConfig (ListMemberConfigReq) returns (ListMemberConfigRsp);
+
+    // 保存会员积分奖励
+    rpc SaveMemberIntegral (SaveMemberIntegralReq) returns (SaveMemberIntegralRsp);
+
+    // 获取推广员会员配置
+    rpc ListAgentMemberConfig (ListAgentMemberConfigReq) returns (ListAgentMemberConfigRsp);
+
+    // 更新推广员会员
+    rpc UpdateAgentMember (UpdateAgentMemberReq) returns (UpdateAgentMemberRsp);
+}
+
+message ListMemberConfigReq {
+}
+
+message ListMemberConfigRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+    map<uint32, MemberConfig> data = 3; // key-会员等级 value-配置信息
+}
+
+message MemberConfig {
+    uint32 Level = 1; // 会员等级 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+    string describe = 2; // 会员等级描述
+    string iconURL = 3; // 图标链接
+    float presentMultiple = 4; // 咖啡豆商城赠送积分倍数
+
+}
+
+// 会员事件类型
+enum MemberEventType {
+    MET_BEGIN = 0;
+    MET_MATCH = 1; // 比赛
+    MET_TIME = 2; // 累计时间
+    MET_TOPUP = 3; // 充值
+}
+
+// 会员事件子类型
+enum MemberEventSubType {
+    MEST_BEGIN = 0;
+    MEST_MATCH_CHAMPION = 1; // 冠军积分奖励
+    MEST_MATCH_OTHER = 2; // 其他获得比赛奖励玩家奖励积分
+    MEST_OFFLINE_GAME = 3; // 线下赛
+    MEST_CUMULATIVE_TIME = 4; // 每累计5小时
+    MEST_FIRST_CHARGE = 5; // 首充
+}
+
+message MemberEventInfo {
+    int64 uid = 1;
+    MemberEventType mainType = 2;
+    MemberEventSubType subType = 3;
+}
+
+message SaveMemberIntegralReq {
+    repeated MemberEventInfo eventInfos = 1;
+}
+
+message SaveMemberIntegralRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+}
+
+message ListAgentMemberConfigReq{
+
+}
+
+message ListAgentMemberConfigRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+    map<uint32, AgentMemberConfig> data = 3; // key-会员等级 value-配置信息
+}
+
+message AgentMemberConfig {
+    uint32 Level = 1; // 会员等级 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+    string describe = 2; // 会员等级描述
+    string iconURL = 3; // 图标链接
+    uint32 discount = 4; // 购买咖啡豆折扣 100表示不打折，90表示9折...
+
+}
+
+message UpdateAgentMemberReq {
+    int64 agent_uid = 1; // 推广员uid
+    int64 saleNum = 2; // 出售豆数量
+}
+
+message UpdateAgentMemberRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+}

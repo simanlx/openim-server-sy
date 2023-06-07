@@ -1,0 +1,192 @@
+syntax = "proto3";
+
+package qim;
+
+
+service FriendServer {
+
+    //校验好友关系
+    rpc doVerifyFriend (VerifyFriendReq) returns (VerifyFriendRsp);
+
+    //校验好友关系
+    rpc GoVerifyFriend (VerifyFriendReq) returns (VerifyFriendRsp);
+
+    //批量校验好友关系
+    rpc batchVerifyFriend (BatchVerifyFriendReq) returns (BatchVerifyFriendRsp);
+
+    //添加好友
+    rpc doAddFriend (AddFriendReq) returns (AddFriendRsp);
+
+    //发送消息批量校验好友关系
+    rpc batchVerifyFriendMsg (BatchVerifyFriendMsgReq) returns (BatchVerifyFriendMsgRsp);
+
+    // 获取已是好友的uid(好友分组或好友uid校验)
+    rpc batchVerifyFriendGroupOrUid (BatchVerifyFriendGroupOrUidReq) returns (BatchVerifyFriendGroupOrUidRsp);
+
+    // 获取好友列表
+    rpc batchFriendList (BatchFriendListReq) returns (BatchFriendListRsp);
+
+    // 获取好友信息列表
+    rpc batchFriendInfoList (batchFriendInfoListReq) returns (batchFriendInfoListRsp);
+
+    // 批量同步推广员好友
+    rpc batchSyncAgentFriend (batchSyncAgentFriendReq) returns (batchSyncAgentFriendRsp);
+
+    // 批量删除管理员从推广员同步的好友
+    rpc batchDelSyncAgentFriend (batchDelSyncAgentFriendReq) returns (batchDelSyncAgentFriendRsp);
+}
+
+message VerifyFriendReq {
+    string from_id = 1;
+    string to_id = 2;
+};
+
+enum VerifyFriendFailCode {
+    VFFC_OK = 0;
+    VFFC_TOID_FORBIDDEN = 1; // 接收方账号被禁用。
+}
+
+message VerifyFriendRsp {
+    bool result = 1; //是否为好友关系
+    bool no_disturbing = 2; //接收方免打扰状态
+    string remark = 3; //对好友的备注
+    bool is_to_blacklist = 4; //是否在接收方黑名单
+    int32 fail_code = 5; // 校验失败返回码，具体见VerifyFriendFailCode
+    string fail_errmsg = 6; // 失败原因描述
+};
+
+message BatchVerifyFriendReq {
+    string from_id = 1;
+    repeated string to_id = 2;
+};
+
+message BatchVerifyFriendRsp {
+    repeated string result = 1;
+};
+
+message AddFriendReq {
+    string from_id = 1;
+    string to_id = 2;
+    bool is_send = 3;
+};
+
+message AddFriendRsp {
+    bool result = 1;
+};
+
+message BatchVerifyFriendMsgReq {
+    string from_id = 1;
+    repeated string to_id = 2;
+};
+
+message BatchVerifyFriendMsgRsp {
+    map<string, bool> results = 1; // 免打扰状态 true-免打扰
+};
+
+// 获取已是好友的uid(好友分组或好友uid校验)
+message BatchVerifyFriendGroupOrUidReq {
+    string uid = 1;
+    repeated int64 fgids = 2; // 好友分组id
+    repeated string fuids = 3; // 好友uid
+};
+
+message BatchVerifyFriendGroupOrUidRsp {
+    repeated string uids = 1;
+};
+
+message BatchFriendListReq {
+    int64 fromId = 1;
+}
+
+message BatchFriendListRsp {
+    int64 fromId = 1;
+    repeated int64 uids = 2;
+}
+
+message batchFriendInfoListReq {
+    int64 fromId = 1;
+    repeated int64 uids = 2;
+}
+
+message friendInfo {
+   string remark = 1;
+}
+
+message batchFriendInfoListRsp {
+    map<int64,friendInfo> friends = 1;
+}
+
+// 批量同步推广员好友
+message batchSyncAgentFriendReq {
+    repeated int64 fromUids = 1;
+    repeated int64 toUids = 2;
+    bool isSendMessage = 3; // 是否发送消息
+};
+
+message batchSyncAgentFriendRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+    map<int64,string> data = 3; // key-toUid value-同步的好友id集字符串
+};
+
+// 批量删除管理员从推广员同步的好友
+message batchDelSyncAgentFriendReq {
+    map<int64,string> uids = 1; // key-管理员uid value-同步的好友id集字符串
+};
+
+message batchDelSyncAgentFriendRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+};
+//--------------- java server--> go srever ----------------------------
+service S2SFriendServer {
+    //导入好友
+    rpc importFriendS2S (S2SImportFriendReq) returns (S2SFriendRsp);
+
+    //校验好友关系
+    rpc batchVerifyFriendS2S (S2SVerifyFriendReq) returns (S2SFriendRsp);
+
+    //拉取指定好友
+    rpc getSpecifiedFriendS2S (S2SGetSpecifiedFriendReq) returns (S2SFriendRsp);
+}
+
+message ResultInner {
+    string tag = 1; //暂时只传remark,需要再扩展
+    string value = 2;
+}
+
+message ResultItem {
+    string to_account = 1 [json_name = "To_Account"]; //用户id
+    string result_info = 2 [json_name = "ResultInfo"]; //错误描述信息，成功时为空
+    int32 result_code = 3 [json_name = "ResultCode"]; //处理结果，0表示成功，1表示失败 2-表示已达好友上限 3-表示已是好友
+    bool is_friend = 4 [json_name = "Is_Friend"]; //是否为好友 验证好友关系时考虑，其他时候忽略
+    repeated ResultInner sns_profile_item = 5 [json_name = "SnsProfileItem"]; //拉取指定好友考虑，其他时候忽略
+}
+//响应结果
+message S2SFriendRsp {
+    repeated string fail_account = 1 [json_name = "Fail_Account"]; //失败用户id
+    string action_status = 2 [json_name = "ActionStatus"]; //请求处理的结果，OK 表示处理成功，FAIL 表示失败
+    int32 error_code = 3 [json_name = "ErrorCode"]; //错误码，0表示成功，非0表示失败
+    string error_info = 4 [json_name = "ErrorInfo"]; //详细错误信息
+    repeated ResultItem info_item = 5 [json_name = "InfoItem"];
+}
+
+//----------------导入好友----------------
+message S2SImportFriendReq {
+    string from_account = 1 [json_name = "From_Account"];
+    repeated string to_account = 2 [json_name = "To_Account"];
+};
+
+//----------------校验好友关系----------------
+message S2SVerifyFriendReq {
+    string from_account = 1 [json_name = "From_Account"];
+    repeated string to_account = 2 [json_name = "To_Account"];
+};
+
+//----------------拉取指定好友----------------
+message S2SGetSpecifiedFriendReq {
+    string from_account = 1 [json_name = "From_Account"];
+    repeated string to_account = 2 [json_name = "To_Account"];
+    repeated string tag_list = 3 [json_name = "TagList"];
+};
+

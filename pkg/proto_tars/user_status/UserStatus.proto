@@ -1,0 +1,83 @@
+syntax = "proto3";
+package qim;
+
+enum UserStatusErrorCode
+{
+    USEC_OK                 = 0;
+    USEC_REDIS_EXEC_FAILED  = 1;
+    USEC_UNKNOWN_TYPE       = 2;
+}
+
+enum UserStatusOperType
+{
+    USOT_BEGIN              = 0;
+    USOT_GET                = 1;
+    USOT_SET                = 2;
+    USOT_DEL                = 3;
+    USOT_UPDATE             = 4;
+}
+
+message UserStatusInfo
+{
+    string uid = 1;
+    int64 sessionid = 2;
+    string gate_ip = 3;  // 网关推送ip
+    int32 gate_port = 4; // 网关推送端口
+    int64 login_timestamp = 5; // 该用户登录的时间戳，单位：ms，给login服务用
+    int64 version = 6;
+    string device_info = 7; // 设备信息
+}
+
+// 获取用户在线状态的请求
+message GetStatusReq
+{
+    repeated string uids = 1;
+}
+
+message GetStatusRsp
+{
+    map<string, UserStatusInfo> map_info = 1;
+}
+
+// 添加用户在线状态的请求
+message SetStatusReq
+{
+    string uid = 1;  // 用户ID
+    UserStatusInfo info = 3;
+}
+
+// 更新用户在线状态的请求：心跳更新
+message UpdateStatusReq
+{
+    string uid = 1; // 仅更新key的超时时间
+}
+
+// 删除用户在线状态的请求，仅删除对应session
+message DelStatusReq
+{
+    string uid = 1;  // 用户ID
+    int64 version = 2; // session版本号
+}
+
+// 操作用户在线状态请求
+message OperUserStatusReq
+{
+    UserStatusOperType type = 1; // 操作类型
+    GetStatusReq get_req = 2;
+    SetStatusReq set_req = 3;
+    UpdateStatusReq update_req = 4;
+    DelStatusReq del_req = 5;
+}
+
+message OperUserStatusRsp
+{
+    UserStatusOperType type = 1; // 操作类型
+    int32 ret_code = 2;
+    string err_msg = 3;
+    GetStatusRsp get_rsp = 4;
+}
+
+service UserStatus
+{
+    rpc operateUserStatus(OperUserStatusReq) returns (OperUserStatusRsp);
+}

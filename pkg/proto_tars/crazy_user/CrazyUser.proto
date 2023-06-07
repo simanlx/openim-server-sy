@@ -1,0 +1,49 @@
+syntax = "proto3";
+option go_package = "path;name";
+package tarsrpc;
+
+
+service UserServer {
+
+    // 获取玩家用户信息
+    rpc getUserById (GetUserByIdReq) returns (GetUserByIdRsp);
+
+    // 批量获取玩家用户信息
+    rpc getUserByIds (GetUserByIdsReq) returns (GetUserByIdsRsp);
+}
+
+message UserInfo {
+    int64 id = 1; // 用户id
+    string nickname = 2; // 昵称
+    string portrait = 3; // 头像
+    string phone = 4; // 手机号
+    int32 sex = 5; // 性别 0:未知 1:男 2:女
+    int32 honor_level = 6; // 荣誉等级 1-荣誉Ⅰ 2-荣誉Ⅱ 3-荣誉Ⅲ 4-荣誉Ⅳ 5-荣誉Ⅴ
+    int32 integral = 7; // 账户咖啡豆
+    int32 gold = 8; // 账户金币
+    int32 coconut_currency = 9; // 账户啡咖啡豆
+    int32 identity = 10; //身份 1:普通用户 2:推广员 3:客服
+    int32 member_level = 11; // 会员等级0-无 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+}
+
+message GetUserByIdReq {
+    int64 id = 1;
+}
+
+message GetUserByIdRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+    UserInfo user = 3;
+}
+
+message GetUserByIdsReq {
+    string ids = 1;
+}
+
+message GetUserByIdsRsp {
+    int32 code = 1; // 0-成功
+    string msg = 2;
+    repeated UserInfo users = 3;
+}
+
+

@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package qim;
+
+
+service UserServer {
+
+    //获取用户信息
+    rpc getUserById (GetUserReq) returns (GetUserRsp);
+
+    //批量获取用户信息
+    rpc getBatchUser (BatchUserReq) returns (BatchUserRsp);
+
+    //获取用户消息配置
+    rpc getUserMsgConfig (UserMsgConfigReq) returns (UserMsgConfigRsp);
+
+    //获取用户配置
+    rpc getUserConfig (UserConfigReq) returns (UserConfigRsp);
+
+    //获取用户id
+    rpc getUids (GetUidsReq) returns (GetUidsRsp);
+
+    //获取极光Registration ID
+    rpc getJpushId (GetJpushIdReq) returns (GetJpushIdRsp);
+
+    //获取用户状态（是否被封号）
+    rpc getUserState (UserStateReq) returns (UserStateRsp);
+
+    //s2s接口 更新用户信息
+    rpc updateUserInfo (UpdateUserInfoReq) returns (UpdateUserInfoRsp);
+
+    //获取用户信息
+    rpc getUserInfo (GetUserInfoReq) returns (GetUserInfoRsp);
+}
+
+message User {
+    string uid = 1; // 用户id
+    string nickname = 2; // 昵称
+    string portrait = 3; // 头像
+    string account = 4; // 小Q号
+    bool group_chat_switch = 5; // 用户群聊开关
+    bool qr_code_switch = 6; // 用户二维码开关
+    bool business_card_switch = 7; // 用户名片开关
+    string game_user_info = 8; // 游戏标识
+    string suyue_user_info = 9; // 苏越标识
+    int64 update_time = 10; // 更新时间
+    int32 memberLevel = 11; // 会员等级 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+    int32 status = 12; // 状态 (0:正常 1:警告 2:禁言 3:封号
+    string inviteCode = 13; // 推广码
+    int32 iDentity = 14; // 身份 (1:普通用户 2:推广员
+    string realName = 15; // 真实姓名
+    string idCard = 16; // 身份证号
+    int32 sex = 17; // 性别 0:未知(预留) 1:男 2:女
+    int32 agentMemberLevel = 18; // 会员等级 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+    int32 matchAccessState = 19; // 比赛入口状态 0-无入口 1-首次显示 2-显示
+    int32 noticeAccessState = 20; // 通知入口状态 0-无入口 1-首次显示 2-显示
+    int32 dataAccessState = 21; // 盈利统计入口状态 0-无入口 1-首次显示 2-显示
+    int32 recordAccessState = 22; // 战报入口状态 0-无入口 1-首次显示 2-显示
+}
+
+message GetUserReq {
+    int64 uid = 1;
+};
+
+message GetUserRsp {
+    User userInfo = 1;
+};
+
+message BatchUserReq {
+    repeated string uids = 1;
+};
+
+message BatchUserRsp {
+    repeated User userInfo = 1;
+};
+
+message UserMsgConfigReq {
+    repeated int64 uid = 1;
+};
+
+message UserConfigInfo {
+    bool need_msg_notify = 1;
+};
+
+message UserMsgConfigRsp {
+    map<string, UserConfigInfo> config = 1;
+};
+
+message UserConfigReq {
+    string uid = 1;
+    string code = 2; //配置code 默认20000
+}
+
+message UserConfigRsp {
+    string uid = 1;
+    map<string, bool> config = 2;
+}
+
+message GetUidsReq {
+    int64 startUid = 1; // 起始自增ID
+    int32 limit = 2; // 一次获取多少个
+}
+
+message GetUidsRsp {
+    repeated int64 uids = 1;
+}
+
+message GetJpushIdReq {
+    repeated string uid = 1; // 用户id
+}
+
+message GetJpushIdRsp {
+    map<string, JpushDetails> jpushs = 1; // key：uid value：Registration ID
+}
+
+message JpushDetails {
+    string jpush_id = 1;
+    bool message_switch = 2;
+}
+
+//----------获取用户状态（是否被封号）----------
+message UserStateReq {
+    int64 uid = 1;
+}
+
+message UserStateRsp {
+    string status = 1;
+    string description = 2;
+}
+
+//----------据token获取用户信息----------
+message UserDetailInfo {
+    int64 id = 1; // 主键
+    string CreateTime = 2; // 创建时间
+    string UpdateTime = 3; // 更新时间
+    bool IsDeleted = 4;
+    int32 AddType = 5; // 用户来源 (1:手机号 2:微信 3:苹果 4:德州扑克
+    string Phone = 6; // 手机号
+    string Token = 7; // 登录 token
+    string Portrait = 8; // 头像
+    string Account = 9; // 用户名
+    string LoginPassword = 10; // 登录密码
+    string PayPassword = 11; // 支付密码
+    string AbnormalInfo = 12; // 警告信息
+    int32 Status = 13; // 状态 (0:正常 1:警告 2:禁言 3:封号
+    string InviteCode = 14; // 推广码
+    int32 IDentity = 15; // 身份 (1:普通用户 2:推广员
+    string RealName = 16; // 真实姓名
+    string IDCard = 17; // 身份证号
+    int32 Sex = 18; // 性别 0:未知(预留) 1:男 2:女
+    int32 HonorLevel = 19; // 荣誉等级0-无 1-荣誉Ⅰ 2-荣誉Ⅱ 3-荣誉Ⅲ 4-荣誉Ⅳ 5-荣誉Ⅴ
+    string NickName = 20; // 昵称
+    int32 MemberLevel = 21; // 会员等级 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+    int32 AgentMemberLevel = 22; // 会员等级 1-新晋会员 2-白银会员 3-黄金会员 4-铂金会员 5-钻石会员
+    int32 MatchAccessState = 23; // 比赛入口状态 0-无入口 1-首次显示 2-显示
+    int32 NoticeAccessState = 24; // 通知入口状态 0-无入口 1-首次显示 2-显示
+    int32 DataAccessState = 25; // 盈利统计入口状态 0-无入口 1-首次显示 2-显示
+    int32 RecordAccessState = 26; // 战报入口状态 0-无入口 1-首次显示 2-显示
+    int32 AgentDiscount = 27; // 推广员折扣 100-不打折 ...
+}
+
+message GetUserInfoReq {
+    string token = 1;
+    string phone = 2;
+    string account = 3;
+    string inviteCode = 4;
+    int64 uid = 5;
+}
+
+message GetUserInfoRsp {
+    UserDetailInfo userInfo = 1;
+}
+
+//----------s2s接口----------
+
+message UpdateUserInfoReq {
+    string uid = 1; // 用户id
+}
+
+message UpdateUserInfoRsp {
+    int32 error_code = 3 [json_name = "ErrorCode"]; //错误码，0表示成功，非0表示失败
+    string error_info = 2 [json_name = "ErrorInfo"]; //错误信息
+}
+
