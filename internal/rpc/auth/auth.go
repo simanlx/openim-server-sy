@@ -14,7 +14,6 @@ import (
 	pbRelay "crazy_server/pkg/proto/relay"
 	"crazy_server/pkg/utils"
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -48,10 +47,8 @@ func (rpc *rpcAuth) SingleLogin(ctx context.Context, req *pbAuth.SingleLoginReq)
 	return resp, nil
 }
 
-func (rpc *rpcAuth) UserRegister(_ context.Context, req *pbAuth.UserRegisterReq) (*pbAuth.UserRegisterResp, error) {
-	fmt.Println("UserRegister")
-	log.NewInfo(req.OperationID, utils.GetSelfFuncName(), "UserRegister注册-1>", utils.JsonFormat(req))
-	log.NewInfo(req.OperationID, utils.GetSelfFuncName(), " rpc args ->", req.String())
+func (rpc *rpcAuth) UserRegister(ctx context.Context, req *pbAuth.UserRegisterReq) (*pbAuth.UserRegisterResp, error) {
+	log.NewInfo(req.OperationID, utils.GetSelfFuncName(), "UserRegister注册>", utils.JsonFormat(req))
 	var user db.User
 	utils.CopyStructFields(&user, req.UserInfo)
 	// 如果用户逇信息中有生日，需要转换一下
@@ -73,12 +70,23 @@ func (rpc *rpcAuth) UserRegister(_ context.Context, req *pbAuth.UserRegisterReq)
 		log.NewError(req.OperationID, errMsg, user)
 		return &pbAuth.UserRegisterResp{CommonResp: &pbAuth.CommonResp{ErrCode: constant.ErrDB.ErrCode, ErrMsg: errMsg}}, nil
 	}
+
+	//写入redis
+	_ = rocksCache.SetCrazyUserToken(ctx, user.UserID, user.Unionid)
+
 	promePkg.PromeInc(promePkg.UserRegisterCounter)
 	log.NewInfo(req.OperationID, utils.GetSelfFuncName(), " rpc return ", pbAuth.UserRegisterResp{CommonResp: &pbAuth.CommonResp{}})
 	return &pbAuth.UserRegisterResp{CommonResp: &pbAuth.CommonResp{}}, nil
 }
 
 func (rpc *rpcAuth) UserToken(ctx context.Context, req *pbAuth.UserTokenReq) (*pbAuth.UserTokenResp, error) {
+	log.NewInfo(req.OperationID, utils.GetSelfFuncName(), " rpc args ", req.String())
+	user, err := imdb.GetUserByUserID(req.FromUserID)
+	if err != nil {
+		log.NewError(req.OperationID, "not this user:", req.FromUserID, req.String())
+		return &pbAuth.UserTokenResp{CommonResp: &pbAuth.CommonResp{ErrCode: constant.ErrDB.ErrCode, ErrMsg: err.Error()}}, nil
+	}
+
 	//单点登录
 	_, _ = rpc.SingleLogin(ctx, &pbAuth.SingleLoginReq{
 		Platform:    req.Platform,
@@ -86,12 +94,9 @@ func (rpc *rpcAuth) UserToken(ctx context.Context, req *pbAuth.UserTokenReq) (*p
 		OperationID: req.OperationID,
 	})
 
-	log.NewInfo(req.OperationID, utils.GetSelfFuncName(), " rpc args ", req.String())
-	_, err := imdb.GetUserByUserID(req.FromUserID)
-	if err != nil {
-		log.NewError(req.OperationID, "not this user:", req.FromUserID, req.String())
-		return &pbAuth.UserTokenResp{CommonResp: &pbAuth.CommonResp{ErrCode: constant.ErrDB.ErrCode, ErrMsg: err.Error()}}, nil
-	}
+	//写入redis
+	_ = rocksCache.SetCrazyUserToken(ctx, user.UserID, user.Unionid)
+
 	tokens, expTime, err := token_verify.CreateToken(req.FromUserID, int(req.Platform))
 	if err != nil {
 		errMsg := req.OperationID + " token_verify.CreateToken failed " + err.Error() + req.FromUserID + utils.Int32ToString(req.Platform)

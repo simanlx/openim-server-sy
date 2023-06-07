@@ -737,3 +737,8 @@ func DelUserJwtToken(ctx context.Context, userId string) {
 	_ = db.DB.RDB.Del(ctx, fmt.Sprintf("UID_PID_TOKEN_STATUS:%s:%s", userId, "Android")).Err()
 	_ = db.DB.RDB.Del(ctx, fmt.Sprintf("UID_PID_TOKEN_STATUS:%s:%s", userId, "IOS")).Err()
 }
+
+// 竞技用户token
+func SetCrazyUserToken(ctx context.Context, userID, unionId string) error {
+	return db.DB.RDB.Set(ctx, fmt.Sprintf("user_token:%s", unionId), userID, -1).Err()
+}
